@@ -7,20 +7,23 @@ BINDIR := bin/
 LIBDIR := lib/
 PYTDIR := python/pyPamtra
 PYINSTDIR := ~/lib/python/
+GIT := /sw/spack-levante/git-2.31.1-25ve7r/bin/git
 
-gitHash    := $(shell git show -s --pretty=format:%H)
-gitVersion := $(shell git describe)-$(shell git name-rev --name-only HEAD)
+gitHash    := $(shell $(GIT) show -s --pretty=format:%H)
+gitVersion := $(shell $(GIT) describe)-$(shell $(GIT) name-rev --name-only HEAD)
 
-NCCONF=/sw/rhel6-x64/netcdf/netcdf_fortran-4.4.2-intel14/bin/nf-config # on newer Ubuntu version C and Fortran libraries have their own configure scripts
+NCCONF=/sw/spack-levante/netcdf-fortran-4.5.3-k6xq5g/bin/nf-config# on newer Ubuntu version C and Fortran libraries have their own configure scripts
 F2PY=f2py # on newer Ubuntu systems, only f2py2.7 is available
-FC=ifort
-CC=icc
+FC=/sw/spack-levante/openmpi-4.1.2-yfwe6t/bin/mpifort
+CC=/sw/spack-levante/openmpi-4.1.2-yfwe6t/bin/mpicc
 FCFLAGS=-c -fPIC -cpp -I$(OBJDIR)
 #FCFLAGS=-g -c -fPIC -Wunused -O0 -cpp -J$(OBJDIR) -I$(OBJDIR)
+MKL_LDFLAGS='-qmkl=sequential'
+MKL_LIBS := -L/sw/spack-levante/intel-oneapi-mkl-2022.0.1-ttdktf/mkl/2022.0.1/lib/intel64 -Wl,-rpath -Wl,/sw/spack-levante/intel-oneapi-mkl-2022.0.1-ttdktf/mkl/2022.0.1/lib/intel64
 
 NCFLAGS :=  $(shell $(NCCONF) --fflags)
-LFLAGS := -L$(LIBDIR) -L../$(LIBDIR) -lmkl_rt -lz
-LDFLAGS := $(shell $(NCCONF) --flibs)
+LFLAGS := -L$(LIBDIR) -L../$(LIBDIR) -lz #$(MKL_LIBS)
+LDFLAGS := $(shell $(NCCONF) --flibs) ${MKL_LDFLAGS}
 # it's messi but needed for ubuntu 16.04
 to_remove:=-Wl,-Bsymbolic-functions -Wl,-z,relro
 LDFLAGS := $(subst $(to_remove),,$(LDFLAGS))
