@@ -2419,15 +2419,19 @@ def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
   '''
 
   import netCDF4
+  import xarray as xr
+  import pandas as pd
+  import datetime as dt
+  from datetime import datetime
 
-  ICON_file = netCDF4.Dataset(fname, mode='r')
+  ICON_file = ds  #xr.open_zarr(fname)
   vals = ICON_file.variables
 
   ## THIS PART IS TROUBLESOME, BUT PEOPLE MIGHT NEED STATION DETAILS ##
-#  station = ICON_file.station.split()
-#  lon = float([s for s in station if '_lon' in s][0].split('=')[-1])
-#  lat = float([s for s in station if '_lat' in s][0].split('=')[-1])
-#  height = float([s for s in station if '_hsurf' in s][0].split('=')[-1])
+  station = ICON_file.station.split('\n')
+  lon = float([s for s in station if '_lon' in s][0].split('=')[-1])
+  lat = float([s for s in station if '_lat' in s][0].split('=')[-1])
+  height = float([s for s in station if '_hsurf' in s][0].split('=')[-1])
 #  name = [s for s in station if '_name' in s][0].split('=')[-1]
 #  frland = float([s for s in station if '_frland' in s][0].split('=')[-1])
 #  fc = float([s for s in station if '_fc' in s][0].split('=')[-1])
@@ -2442,6 +2446,8 @@ def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
     hgt_key = 'height'
   elif 'heights' in vals:
     hgt_key = 'heights'
+  elif 'hgt' in vals:
+    hgt_key = 'hgt'
   else:
     raise AttributeError('ICON file does not have a valid height label (I know only height, heights, height_2 and heights_2)')
 
@@ -2452,9 +2458,10 @@ def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
     timeidx = timeidx = np.arange(0,Nt)
   shapeSFC = (len(timeidx),)
 
-  date_times = netCDF4.num2date(vals["time"][timeidx], vals["time"].units) # datetime autoconversion
-  timestamp = netCDF4.date2num(date_times, "seconds since 1970-01-01 00:00:00") # to unix epoch timestamp (python uses nanoseconds int64 internally)
-  pamData['timestamp'] = timestamp
+  #date_times = netCDF4.num2date(vals["time"][timeidx], vals["time"].encoding['units']) # datetime autoconversion
+  #import pdb; pdb.set_trace()
+  #timestamp = netCDF4.date2num(vals["time"][timeidx], "seconds since 2020-01-01 00:00:00") # to unix epoch timestamp (python uses nanoseconds int64 internally)
+  pamData['timestamp'] = (pd.to_datetime(vals["time"][timeidx].values) - dt.datetime(1970,1,1)).total_seconds()  #vals["time"][timeidx].values.astype(datetime).astype(int)
   pamData['hgt_lev'] = np.tile(np.flip(vals[hgt_key],0),(len(timeidx),1)) # heights at which fields are defined
 
   pamData['press']  = np.flip(vals['P'][timeidx],1)    # pressure
