@@ -1507,6 +1507,7 @@ def readIconNwp2MomDataset(fname_fg,descriptorFile,debug=False,verbosity=0,const
   IOError
   """
   import netCDF4
+  import xarray as xr
 
   assert constantFields
   forecastIndex = 0 # time step in forecast
@@ -1521,8 +1522,8 @@ def readIconNwp2MomDataset(fname_fg,descriptorFile,debug=False,verbosity=0,const
 
   if verbosity>0: print(fname_fg)
 
-  if not fname_fg.endswith('.nc'):
-    raise IOError("fname_fg has to be .nc.", fname_fg)
+  if not fname_fg.endswith('.zarr'):
+    raise IOError("fname_fg has to be .zarr.", fname_fg)
   if not '_fg_' in os.path.basename(fname_fg):
     raise IOError("fname_fg has to contain '_fg_'.", fname_fg)
 
@@ -1539,29 +1540,29 @@ def readIconNwp2MomDataset(fname_fg,descriptorFile,debug=False,verbosity=0,const
     ncFile_const.close()
     if verbosity > 1: print("closed const nc")
 
-    ncFile_fg = netCDF4.Dataset(fname_fg, "r")
+    ncFile_fg = xr.open_zarr(fname_fg)
     if verbosity > 1: print("opened ", fname_fg)
 
 
     if maxLevel == 0:
-      assert ncFile_fg.variables["z_ifc"].dimensions == ('lat', 'height_3', 'lon')
-      assert ncFile_fg.dimensions['height'].size + 1 == ncFile_fg.dimensions['height_3'].size
+      assert ncFile_fg.variables["z_ifc"].dims == ('lat', 'height_3', 'lon')
+      assert ncFile_fg.dims['height'] + 1 == ncFile_fg.dims['height_3']
       maxLevel = ncFile_fg.variables["z_ifc"].shape[1] - 1
 
     for var in variables3D:
       # nc dimensions: time, lat, lon; target dimensions: lon, lat
-      assert ncFile_fg.variables[var].dimensions == ('time', 'lat', 'lon')
+      assert ncFile_fg.variables[var].dims == ('time', 'lat', 'lon')
       dataSingle[var] = np.swapaxes(ncFile_fg.variables[var][forecastIndex],0,1)
 
     for var in variables4D_10m:
       # nc dimensions: time, lat, height_5 lon; target dimensions: lon, lat
-      assert ncFile_fg.variables[var].dimensions == ('time', 'lat', 'height_5', 'lon')
-      assert ncFile_fg.dimensions['height_5'].size == 1
+      assert ncFile_fg.variables[var].dims == ('time', 'lat', 'height_5', 'lon')
+      assert ncFile_fg.dims['height_5'].size == 1
       dataSingle[var] = np.swapaxes(ncFile_fg.variables[var][forecastIndex, :, 0, :],0,1)
 
     for var in variables4D:
       # nc dimensions: time, lat, height, lon; target dimensions: lon, lat, level
-      assert ncFile_fg.variables[var].dimensions == ('time', 'lat', 'height', 'lon')
+      assert ncFile_fg.variables[var].dims == ('time', 'lat', 'height', 'lon')
       dataSingle[var] = np.transpose(ncFile_fg.variables[var][forecastIndex], (2, 0, 1))[...,::-1][...,:maxLevel]#reverse height order
 
     shape3D = dataSingle["temp"].shape
@@ -1582,12 +1583,9 @@ def readIconNwp2MomDataset(fname_fg,descriptorFile,debug=False,verbosity=0,const
 
     for key in ["z_ifc"]:
       # nc dimensions: lat, height, lon; target dimensions: lon, lat, level
-      assert ncFile_fg.variables[key].dimensions == ('lat', 'height_3', 'lon')
+      assert ncFile_fg.variables[key].dims == ('lat', 'height_3', 'lon')
       dataSingle[key] = np.transpose(ncFile_fg[key],(2, 0, 1))[...,::-1][...,:maxLevel+1]#reverse height order
       assert dataSingle[key].shape == shape3Dplus
-
-    ncFile_fg.close()
-    if verbosity > 1: print("closed fg nc")
 
     data = dataSingle
 
@@ -2348,9 +2346,9 @@ def readIcon1momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
     timeidx = timeidx = np.arange(0,Nt)
   shapeSFC = (len(timeidx),)
 
-  date_times = netCDF4.num2date(vals["time"][timeidx], vals["time"].units) # datetime autoconversion
-  timestamp = netCDF4.date2num(date_times, "seconds since 1970-01-01 00:00:00") # to unix epoch timestamp (python uses nanoseconds int64 internally)
-  pamData['timestamp'] = timestamp
+  #date_times = netCDF4.num2date(vals["time"][timeidx], vals["time"].units) # datetime autoconversion
+  #timestamp = netCDF4.date2num(date_times, "seconds since 1970-01-01 00:00:00") # to unix epoch timestamp (python uses nanoseconds int64 internally)
+  pamData['timestamp'] = vals["time"][timeidx]
   pamData['hgt_lev'] = np.tile(np.flip(vals[hgt_key],0),(len(timeidx),1)) # heights at which fields are defined
 
   pamData['press']  = np.flip(vals['P'][timeidx],1)    # pressure
@@ -2400,7 +2398,7 @@ def readIcon1momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
   return pam
 
 
-def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timeidx=None, hydro_content=[1.,1.,1.,1.,1.,1.]):
+def readIcon2momMeteogram(ds, descriptorFile, debug=False, verbosity=0, timeidx=None, hydro_content=[1.,1.,1.,1.,1.,1.]):
   '''
   import ICON LEM 2-moment dataset output cross section over a site (Meteogram)
 
@@ -2470,7 +2468,8 @@ def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
   wind_v = np.flip(vals['V'][timeidx],1)               # meridional wind speed
   pamData['wind_uv'] = np.hypot(wind_u, wind_v)
   wind_w = np.flip(vals['W'][timeidx],1)               # vertical wind speed
-  pamData['wind_w'] = -0.5*(wind_w[:,:-1]+wind_w[:,1:]) #sign change due to conventions: for model upward is positive; in pamtra downward velocity is positive 
+  #pamData['wind_w'] = -1*wind_w
+  #pamData['wind_w'] = -0.5*(wind_w[:,:-1]+wind_w[:,1:]) #sign change due to conventions: for model upward is positive; in pamtra downward velocity is positive 
 
   pamData['relhum'] = np.flip(vals['REL_HUM'][timeidx],1)
 
@@ -2505,6 +2504,14 @@ def readIcon2momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
   pamData['sfc_model'] = np.zeros(pamData['groundtemp'].shape)
   pamData['sfc_refl']  = np.chararray(pamData['groundtemp'].shape)
   pamData['sfc_refl'][:] = 'S' # land  'F' # ocean 'L' lambertian, land
+
+  # station properties
+  pamData['lat'] = np.ones(pamData['groundtemp'].shape)
+  pamData['lon'] = np.ones(pamData['groundtemp'].shape)
+  #pamData['obs_height'] = np.ones(pamData['groundtemp'].shape)
+  pamData['lat'][:] = lat
+  pamData['lon'][:] = lon
+  #pamData['obs_height'] = height
 
   pam = pyPamtra()
   pam.set['pyVerbose'] = verbosity

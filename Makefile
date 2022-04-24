@@ -6,7 +6,7 @@ SRCDIR := src/
 BINDIR := bin/
 LIBDIR := lib/
 PYTDIR := python/pyPamtra
-PYINSTDIR := ~/lib/python/
+PYINSTDIR := /work/mh0010/m300408/anaconda3/envs/mesoscale/lib/python3.9/  #~/libb/python/
 
 gitHash    := $(shell git show -s --pretty=format:%H)
 gitVersion := $(shell git describe)-$(shell git name-rev --name-only HEAD)
