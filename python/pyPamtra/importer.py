@@ -2310,7 +2310,7 @@ def readIcon1momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
 
   import netCDF4
 
-  ICON_file = netCDF4.Dataset(fname, mode='r')
+  ICON_file = ds
   vals = ICON_file.variables
 
   ## THIS PART IS TROUBLESOME, BUT PEOPLE MIGHT NEED STATION DETAILS ##
@@ -2348,7 +2348,7 @@ def readIcon1momMeteogram(fname, descriptorFile, debug=False, verbosity=0, timei
 
   #date_times = netCDF4.num2date(vals["time"][timeidx], vals["time"].units) # datetime autoconversion
   #timestamp = netCDF4.date2num(date_times, "seconds since 1970-01-01 00:00:00") # to unix epoch timestamp (python uses nanoseconds int64 internally)
-  pamData['timestamp'] = vals["time"][timeidx]
+  pamData['timestamp'] = (pd.to_datetime(vals["time"][timeidx].values) - dt.datetime(1970,1,1)).total_seconds() 
   pamData['hgt_lev'] = np.tile(np.flip(vals[hgt_key],0),(len(timeidx),1)) # heights at which fields are defined
 
   pamData['press']  = np.flip(vals['P'][timeidx],1)    # pressure
